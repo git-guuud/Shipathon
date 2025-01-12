@@ -1,4 +1,4 @@
-# SmartLang PDF2Doc
+# SmartLang PDF2Docx
 
 
 
@@ -46,5 +46,5 @@ We created an AI-powered tool that converts PDFs from any language into Word doc
 
 ##  Deployment
 
- Project Link: [PDFtoDOC]()
+ Project Link: [PDFtoDOC](https://git-guuud-shipathon-app-t1dy9h.streamlit.app/)
 
