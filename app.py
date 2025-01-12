@@ -10,6 +10,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 from dotenv import load_dotenv
+import traceback
 
 load_dotenv(".env")
 API_KEY = os.getenv("API")
@@ -24,7 +25,7 @@ def getjson(pdf_file):
         pix = page.get_pixmap()
         image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         image.save(f"uploads/page_{page_num}.jpg", "JPEG")
-        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Think of it as a document with multiple pages, each image being a page. Understand page-to-page flow logically and semantically. Translate the given text to English and return it.", image], stream=True, generation_config={"temperature": 0.01})
+        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Think of it as a document with multiple pages, each image being a page. Understand page-to-page flow logically and semantically. Translate the given text to English if its not in english and return it.", image], stream=True, generation_config={"temperature": 0.01})
         response.resolve()
         schema = '''
             {
@@ -133,6 +134,7 @@ def main():
                 st.download_button('Download Translated Docx', data = document, file_name=docx_file)
             st.success("Done!")
     except Exception as error:
-        print("An error occurred:", type(error).__name__)
+        st.error("Something went wrong. Please try again later.")
+        print(traceback.format_exc())
 
 main()
