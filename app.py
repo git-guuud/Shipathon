@@ -9,14 +9,14 @@ import json
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
-#from getjson import getjson
-#    input_json = "uploads/Shipam-json.json"  
- #   output_docx = "uploads/output_document.docx"
-  #  create_docx_from_json(input_json, output_docx)
+from dotenv import load_dotenv
+
+load_dotenv(".env")
+API_KEY = os.getenv("API")
 
 def getjson(pdf_file):
     pdf_document = fitz.open(pdf_file)
-    genai.configure(api_key="AIzaSyDYy-0qPy00zBRizPa3BDmJoFY2Ane3jls")
+    genai.configure(api_key=API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
     for page_num in range(len(pdf_document)):
@@ -24,7 +24,7 @@ def getjson(pdf_file):
         pix = page.get_pixmap()
         image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         image.save(f"uploads/page_{page_num}.jpg", "JPEG")
-        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Think of it as a document with multiple pages, each image being a page. Understand page-to-page flow logically and semantically. Translate it to Hindi.", image], stream=True)
+        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Think of it as a document with multiple pages, each image being a page. Understand page-to-page flow logically and semantically. Translate the given text to English and return it.", image], stream=True, generation_config={"temperature": 0.01})
         response.resolve()
         schema = '''
             {
@@ -57,23 +57,24 @@ def getjson(pdf_file):
     return len(pdf_document)
 
 def apply_paragraph_style(paragraph, font_size=None, alignment=None, font_style=None):
-    if font_size:
-        run = paragraph.runs[0]
-        run.font.size = Pt(font_size)
+    if paragraph.runs[0]:
+        if font_size:
+            run = paragraph.runs[0]
+            run.font.size = Pt(font_size)
     
-    if font_style:
-        if "bold" in font_style.lower():
-            paragraph.runs[0].bold = True
-        if "italic" in font_style.lower():
-            paragraph.runs[0].italic = True
-    
-    if alignment:
-        alignment_map = {
-            "left": WD_ALIGN_PARAGRAPH.LEFT,
-            "center": WD_ALIGN_PARAGRAPH.CENTER,
-            "right": WD_ALIGN_PARAGRAPH.RIGHT
-        }
-        paragraph.alignment = alignment_map.get(alignment.lower(), WD_ALIGN_PARAGRAPH.LEFT)
+        if font_style:
+            if "bold" in font_style.lower():
+                paragraph.runs[0].bold = True
+            if "italic" in font_style.lower():
+                paragraph.runs[0].italic = True
+        
+        if alignment:
+            alignment_map = {
+                "left": WD_ALIGN_PARAGRAPH.LEFT,
+                "center": WD_ALIGN_PARAGRAPH.CENTER,
+                "right": WD_ALIGN_PARAGRAPH.RIGHT
+            }
+            paragraph.alignment = alignment_map.get(alignment.lower(), WD_ALIGN_PARAGRAPH.LEFT)
 
 def create_docx_from_json(json_file_path, output_docx_path):
     with open(json_file_path, "r", encoding="utf-8") as file:
@@ -92,7 +93,6 @@ def create_docx_from_json(json_file_path, output_docx_path):
             apply_paragraph_style(paragraph, font_size=font_size, alignment=alignment, font_style=font_style)
     
     document.save(output_docx_path)
-    print(f"Document saved as {output_docx_path}")
 
 def createdoc(name, length):
     output_docx = 'uploads/' + name 
@@ -104,32 +104,35 @@ def createdoc(name, length):
         create_docx_from_json(input_json, output_docx)
 
 
-st.title("PDF To DOCX Translator")
-shutil.rmtree("uploads")
-os.makedirs("uploads")
-pdf_file = None
-pdf_file = st.file_uploader("Please upload a PDF file to translate.", type=["pdf"])
+def main():
+    try:
+        st.title("PDF To DOCX Translator")
+        if os.path.exists("uploads"):
+            shutil.rmtree("uploads")
+        os.makedirs("uploads")
+        pdf_file = None
+        pdf_file = st.file_uploader("Please upload a PDF file to translate.", type=["pdf"])
 
-if pdf_file is not None:
-    with open(os.path.join("uploads",pdf_file.name),"wb") as f: 
-      f.write(pdf_file.getbuffer())  
+        if pdf_file is not None:
+            with open(os.path.join("uploads",pdf_file.name),"wb") as f: 
+                f.write(pdf_file.getbuffer())  
 
-    with st.spinner('Uploading and Translating'):
-        length = getjson(f"uploads/{pdf_file.name}")
-        docx_file = pdf_file.name.rsplit(".",1)[0] + ".docx"
-        createdoc(docx_file ,length)
-        doc = aw.Document(f"uploads/{docx_file}")
-        save_options = aw.saving.ImageSaveOptions(aw.SaveFormat.JPEG)
-        save_options.page_set = aw.saving.PageSet(0)
-        image_file = pdf_file.name.rsplit(".",1)[0] +  ".jpg"
-        doc.save(f"uploads/{image_file}", save_options)
-        st.subheader("Preview")
-        st.image(f"uploads/{image_file}")
-        with open(f"uploads/{docx_file}", 'rb') as f:
-            document = f.read()
-        st.download_button('Download Translated Docx', data = document, file_name=docx_file)
-    st.success("Done!")
+            with st.spinner('Uploading and Translating'):
+                length = getjson(f"uploads/{pdf_file.name}")
+                docx_file = pdf_file.name.rsplit(".",1)[0] + ".docx"
+                createdoc(docx_file ,length)
+                doc = aw.Document(f"uploads/{docx_file}")
+                save_options = aw.saving.ImageSaveOptions(aw.SaveFormat.JPEG)
+                save_options.page_set = aw.saving.PageSet(0)
+                image_file = pdf_file.name.rsplit(".",1)[0] +  ".jpg"
+                doc.save(f"uploads/{image_file}", save_options)
+                st.subheader("Preview")
+                st.image(f"uploads/{image_file}")
+                with open(f"uploads/{docx_file}", 'rb') as f:
+                    document = f.read()
+                st.download_button('Download Translated Docx', data = document, file_name=docx_file)
+            st.success("Done!")
+    except Exception as error:
+        print("An error occurred:", type(error).__name__)
 
-
-
-
+main()
