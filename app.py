@@ -107,6 +107,7 @@ def createdoc(name, length):
 
 def main():
     try:
+        st.set_page_config(page_title="PDF To DOCX Translator")
         st.title("PDF To DOCX Translator")
         if os.path.exists("uploads"):
             shutil.rmtree("uploads")
