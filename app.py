@@ -10,6 +10,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 
 API_KEY = st.secrets["API"]
 
@@ -18,12 +19,13 @@ def getjson(pdf_file):
     genai.configure(api_key=API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
-    for page_num in range(len(pdf_document)):
+    length = len(pdf_document)
+    def json(page_num):
         page = pdf_document.load_page(page_num)
         pix = page.get_pixmap()
         image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         image.save(f"uploads/page_{page_num}.jpg", "JPEG")
-        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Think of it as a document with multiple pages, each image being a page. Understand page-to-page flow logically and semantically. Translate the given text to English and return it.", image], stream=True, generation_config={"temperature": 0.01})
+        response = model.generate_content(["Act like a text scanner and translator. Extract text as it is without analyzing it and without summarizing it. Treat all images as a whole document and analyze them accordingly. Understand page-to-page flow logically and semantically. Translate the extracted text to English and return it.", image], stream=True, generation_config={"temperature": 0.01})
         response.resolve()
         schema = '''
             {
@@ -53,10 +55,22 @@ def getjson(pdf_file):
         file = open(f"uploads/page_{page_num}.json", 'w', encoding="utf-8")
         file.write(response.text.split("json")[1].split('`')[0].strip())
         file.close()
-    return len(pdf_document)
+    with ThreadPoolExecutor() as executor:
+        l=len(pdf_document)
+        n=l//3
+        a=0
+        b=3
+        for i in range(n):
+            list(executor .map(json,range(a,b)))
+            a+=3
+            b+=3
+        list(executor.map(json,range(a,l)))
+        executor.shutdown(wait=True)
+    pdf_document.close()
+    return length
 
 def apply_paragraph_style(paragraph, font_size=None, alignment=None, font_style=None):
-    if paragraph.runs[0]:
+    if paragraph.runs:
         if font_size:
             run = paragraph.runs[0]
             run.font.size = Pt(font_size)
@@ -78,6 +92,7 @@ def apply_paragraph_style(paragraph, font_size=None, alignment=None, font_style=
 def create_docx_from_json(json_file_path, output_docx_path):
     with open(json_file_path, "r", encoding="utf-8") as file:
         data = json.load(file)
+        file.close()
     
     document = Document(output_docx_path)
 
@@ -104,18 +119,19 @@ def createdoc(name, length):
 
 
 def main():
+    st.set_page_config(page_title="PDF To DOCX Translator")
+    st.title("PDF To DOCX Translator")
+    pdf_file = None
+    pdf_file = st.file_uploader("Please upload a PDF file to translate.", type=["pdf"])
+
     try:
-        st.set_page_config(page_title="PDF To DOCX Translator")
-        st.title("PDF To DOCX Translator")
         if os.path.exists("uploads"):
             shutil.rmtree("uploads")
         os.makedirs("uploads")
-        pdf_file = None
-        pdf_file = st.file_uploader("Please upload a PDF file to translate.", type=["pdf"])
-
         if pdf_file is not None:
             with open(os.path.join("uploads",pdf_file.name),"wb") as f: 
                 f.write(pdf_file.getbuffer())  
+                f.close()
 
             with st.spinner('Uploading and Translating'):
                 length = getjson(f"uploads/{pdf_file.name}")
@@ -130,10 +146,11 @@ def main():
                 st.image(f"uploads/{image_file}")
                 with open(f"uploads/{docx_file}", 'rb') as f:
                     document = f.read()
+                    f.close()
                 st.download_button('Download Translated Docx', data = document, file_name=docx_file)
             st.success("Done!")
     except Exception as error:
-        st.error("Something went wrong. Please try again later.")
+        st.error("Something went wrong. Please try again.")
         print(traceback.format_exc())
 
 main()
